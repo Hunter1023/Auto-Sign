@@ -24,3 +24,14 @@
 # 创建项目
 
 Ctrl + Shift + P 打开命令面板，输入 `AutoJs: Create New Project` 并回车，选择项目名称和路径，即可创建新的项目。
+
+## 初始目录结构
+
+├─.internal
+├─Declarations         # 代码智能补全声明
+├─modules              # 功能模块
+│  jsconfig.json       # 代码智能补全配置
+│  main.js             # 主入口文件
+│  package.json        # 项目依赖
+│  project.json        # 项目配置
+│  tsconfig.json       # 定义TypeScript编译规则
