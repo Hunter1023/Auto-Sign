@@ -9,12 +9,12 @@
         "stableMode": false
     },
     "main": "main.js",
-    "name": "Auto-Sign2",
+    "name": "Auto-Sign",
     "optimization": {
         "removeOpenCv": false,
         "unusedResources": false
     },
-    "packageName": "org.autojs.autojs6.auto_sign2",
+    "packageName": "org.autojs.autojs6.auto_sign",
     "scripts": {},
     "versionCode": 1,
     "versionName": "1.0.0",
