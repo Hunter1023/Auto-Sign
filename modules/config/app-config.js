@@ -111,6 +111,33 @@ AppConfig.prototype.loadTasks = function() {
                     }
                 ]
             }
+        },
+        // 测试任务
+        {
+            id: 99,
+            name: "自动化测试任务",
+            packageName: "com.android.settings", // 使用系统设置应用进行测试
+            enabled: true,
+            description: "用于测试引擎和工具模块的功能",
+            config: {
+                steps: [
+                    { 
+                        action: "launch", 
+                        description: "启动设置应用",
+                        params: { timeout: 3000 }
+                    },
+                    { 
+                        action: "wait_exists", 
+                        description: "检查设置界面",
+                        params: { selector: 'text("设置") || text("Settings")', timeout: 5000 }
+                    },
+                    { 
+                        action: "click", 
+                        description: "点击搜索框",
+                        params: { selector: 'text("搜索") || desc("搜索")', timeout: 3000 }
+                    }
+                ]
+            }
         }
     ];
 };

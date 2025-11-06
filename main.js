@@ -1,72 +1,91 @@
 "ui";
 
+var SimpleUtils = require('./modules/utils/simple-utils.js');
+var SimpleEngine = require('./modules/core/simple-engine.js');
+
 // 第一步：基础UI布局
-ui.layout(
-    <frame>
-        <vertical padding="16" bg="#f0f0f0">
-            {/* <!-- 标题栏 --> */}
-            <horizontal gravity="center" bg="#2196F3" padding="12" cornerRadius="8" margin="0 0 16 0">
-                <text text="多应用自动签到" textSize="20sp" textColor="white" textStyle="bold"/>
-            </horizontal>
-            
-            {/* <!-- 控制按钮 --> */}
-            <horizontal gravity="center" margin="0 0 12 0">
-                <button id="btnStartAll" text="开始全部任务" layout_weight="1"/>
-                <button id="btnStopAll" text="停止所有任务" layout_weight="1"/>
-            </horizontal>
-            
-            <horizontal gravity="center" margin="0 0 12 0">
-                <button id="btnSingleTest" text="单任务测试" layout_weight="1"/>
-                <button id="btnRefresh" text="刷新" layout_weight="1"/>
-            </horizontal>
-            
-            {/* <!-- 任务列表 --> */}
-            <text text="任务列表" textSize="16sp" textStyle="bold" margin="8 0"/>
-            <scroll>
-                <list id="taskList">
-                    <vertical padding="12" margin="4" bg="#ffffff" cornerRadius="8">
-                        <horizontal gravity="center_vertical">
-                            <text text="{{appName}}" textSize="16sp" layout_weight="1" textStyle="bold"/>
-                            <text text="{{status}}" textColor="{{statusColor}}" textSize="14sp"/>
-                        </horizontal>
-                        <progressbar progress="{{progress}}" max="100" margin="8 0 4 0"/>
-                        <horizontal>
-                            <text text="{{lastRun}}" textSize="11sp" textColor="#999999"/>
-                        </horizontal>
-                    </vertical>
-                </list>
-            </scroll>
-            
-            {/* <!-- 运行日志 --> */}
-            <vertical bg="#ffffff" cornerRadius="8" padding="12" margin="8 0">
-                <horizontal gravity="center_vertical">
-                    <text text="运行日志" textSize="14sp" textStyle="bold" layout_weight="1"/>
-                    <button id="btnClearLog" text="清空" w="60" h="30" textSize="10sp"/>
+function setupUI() {
+    ui.layout(
+        <frame>
+            <vertical padding="16" bg="#f0f0f0">
+                {/* <!-- 标题栏 --> */}
+                <horizontal gravity="center" bg="#2196F3" padding="12" cornerRadius="8" margin="0 0 16 0">
+                    <text text="多应用自动签到" textSize="20sp" textColor="white" textStyle="bold"/>
                 </horizontal>
-                <scroll h="120" bg="#f8f8f8" cornerRadius="4" padding="8">
-                    <text id="logContent" text="应用初始化中..." textSize="12sp"/>
+                
+                {/* <!-- 控制按钮 --> */}
+                <horizontal gravity="center" margin="0 0 12 0">
+                    <button id="btnStartAll" text="开始全部任务" layout_weight="1"/>
+                    <button id="btnStopAll" text="停止所有任务" layout_weight="1"/>
+                </horizontal>
+                
+                <horizontal gravity="center" margin="0 0 12 0">
+                    <button id="btnSingleTest" text="单任务测试" layout_weight="1"/>
+                    <button id="btnRefresh" text="刷新" layout_weight="1"/>
+                </horizontal>
+
+                {/* <!-- 测试按钮 --> */}
+                <horizontal gravity="center_vertical" margin="0 0 12 0">
+                    <button id="btnHealthCheck" text="健康检查" layout_weight="1"/>
+                    <button id="btnEngineTest" text="引擎测试" layout_weight="1"/>
+                    <button id="btnRefresh" text="刷新" layout_weight="1"/>
+                </horizontal>
+                
+                {/* <!-- 任务列表 --> */}
+                <text text="任务列表" textSize="16sp" textStyle="bold" margin="8 0"/>
+                <scroll>
+                    <list id="taskList">
+                        <vertical padding="12" margin="4" bg="#ffffff" cornerRadius="8">
+                            <horizontal gravity="center_vertical">
+                                <text text="{{appName}}" textSize="16sp" layout_weight="1" textStyle="bold"/>
+                                <text text="{{status}}" textColor="{{statusColor}}" textSize="14sp"/>
+                            </horizontal>
+                            <progressbar progress="{{progress}}" max="100" margin="8 0 4 0"/>
+                            <horizontal>
+                                <text text="{{lastRun}}" textSize="11sp" textColor="#999999"/>
+                            </horizontal>
+                        </vertical>
+                    </list>
                 </scroll>
+                
+                {/* <!-- 运行日志 --> */}
+                <vertical bg="#ffffff" cornerRadius="8" padding="12" margin="8 0">
+                    <horizontal gravity="center_vertical">
+                        <text text="运行日志" textSize="14sp" textStyle="bold" layout_weight="1"/>
+                        <button id="btnClearLog" text="清空" w="60" h="30" textSize="10sp"/>
+                    </horizontal>
+                    <scroll h="120" bg="#f8f8f8" cornerRadius="4" padding="8">
+                        <text id="logContent" text="应用初始化中..." textSize="12sp"/>
+                    </scroll>
+                </vertical>
+                
+                {/* <!-- 状态栏 --> */}
+                <horizontal gravity="center_vertical" margin="8 0 0 0">
+                    <text id="statusText" text="就绪" textSize="12sp" textColor="#666666" layout_weight="1"/>
+                    <text text="v1.0.0" textSize="10sp" textColor="#999999"/>
+                </horizontal>
             </vertical>
-            
-            {/* <!-- 状态栏 --> */}
-            <horizontal gravity="center_vertical" margin="8 0 0 0">
-                <text id="statusText" text="就绪" textSize="12sp" textColor="#666666" layout_weight="1"/>
-                <text text="v1.0.0" textSize="10sp" textColor="#999999"/>
-            </horizontal>
-        </vertical>
-    </frame>
-);
+        </frame>
+    );
+}
+
 
 // 第二步：基础功能实现
 var taskData = [];
 var logLines = [];
 var maxLogLines = 50;
 var isRunning = false;
-var appConfig = null; // 使用局部变量而不是window
+var appConfig = null;
+var simpleUtils = null;
+var simpleEngine = null;
 
 // 初始化应用
 function initialize() {
     try {
+        // 初始化工具和引擎
+        simpleUtils = new SimpleUtils();
+        simpleEngine = new SimpleEngine();
+
         // 加载配置
         loadConfig();
         
@@ -77,6 +96,7 @@ function initialize() {
         bindEvents();
         
         log("应用初始化完成");
+        log("工具模块和引擎初始化成功");
         updateStatus("就绪");
     } catch (e) {
         log("初始化失败: " + e.toString());
@@ -223,6 +243,15 @@ function bindEvents() {
     ui.taskList.on("item_click", function(item, i, itemView, listView) {
         showTaskDetail(i);
     });
+
+    // 测试按钮事件
+    ui.btnHealthCheck.click(function() {
+        healthCheck();
+    });
+    
+    ui.btnEngineTest.click(function() {
+        runEngineTest();
+    });
 }
 
 // 检查无障碍服务
@@ -272,9 +301,10 @@ function executeTasksSequentially(tasks, index) {
     
     // 更新任务状态为执行中
     updateTaskStatus(index, "执行中", "#FF9800", 30);
+
     
     // 模拟任务执行（实际使用时替换为真实的任务执行逻辑）
-    simulateTaskExecution(task, index).then(function() {
+    taskExecution(task, index).then(function() {
         // 任务完成
         updateTaskStatus(index, "完成", "#4CAF50", 100);
         log("任务完成: " + task.name);
@@ -295,38 +325,28 @@ function executeTasksSequentially(tasks, index) {
     });
 }
 
-// 模拟任务执行（实际开发中替换为真实逻辑）
-function simulateTaskExecution(task, index) {
+
+function taskExecution(task, index) {
     return new Promise(function(resolve, reject) {
-        var steps = task.config.steps;
-        var currentStep = 0;
-        
-        function executeNextStep() {
-            if (currentStep >= steps.length || !isRunning) {
-                resolve();
-                return;
-            }
-            
-            var step = steps[currentStep];
-            var progress = 30 + Math.floor((currentStep / steps.length) * 60);
-            updateTaskStatus(index, "步骤 " + (currentStep + 1), "#FF9800", progress);
-            
-            log("执行步骤: " + step.action);
-            
-            // 模拟步骤执行
-            setTimeout(function() {
-                currentStep++;
-                
-                // 随机模拟成功或失败
-                if (Math.random() > 0.1) { // 90%成功率
-                    executeNextStep();
-                } else {
-                    reject("步骤执行失败");
-                }
-            }, 1500);
+        if (!isRunning) {
+            reject(new Error("任务已被停止"));
+            return;
         }
         
-        executeNextStep();
+        log("开始真实执行任务: " + task.name);
+        
+        // 使用 SimpleEngine 执行任务
+        simpleEngine.executeTask(task, function(progress, status) {
+            // 更新进度回调
+            var actualProgress = 20 + Math.floor(progress * 0.8); // 映射到20-100的进度范围
+            updateTaskStatus(index, status, "#FF9800", actualProgress);
+        }).then(function(result) {
+            log("任务执行成功: " + task.name);
+            resolve(result);
+        }).catch(function(error) {
+            log("任务执行失败: " + task.name + " - " + error);
+            reject(error);
+        });
     });
 }
 
@@ -438,5 +458,131 @@ function showTaskDetail(index) {
     }).show();
 }
 
-// 启动应用
+// 模块健康检查
+function healthCheck() {
+    return new Promise(function(resolve) {
+        log("开始模块健康检查...");
+        
+        var checks = [];
+        
+        // 检查 SimpleUtils
+        if (simpleUtils) {
+            checks.push("✓ SimpleUtils 加载正常");
+            
+            // 测试 sleep 功能
+            simpleUtils.sleep(100).then(function() {
+                log("✓ SimpleUtils.sleep() 工作正常");
+            }).catch(function(e) {
+                log("✗ SimpleUtils.sleep() 测试失败: " + e);
+            });
+        } else {
+            checks.push("✗ SimpleUtils 加载失败");
+        }
+        
+        // 检查 SimpleEngine
+        if (simpleEngine) {
+            checks.push("✓ SimpleEngine 加载正常");
+        } else {
+            checks.push("✗ SimpleEngine 加载失败");
+        }
+        
+        // 显示检查结果
+        setTimeout(function() {
+            checks.forEach(function(check) {
+                log(check);
+            });
+            
+            // 测试工具函数
+            testUtilsFunctions();
+            
+            log("健康检查完成");
+            resolve();
+        }, 500);
+    });
+}
+
+// 测试工具函数
+function testUtilsFunctions() {
+    log("测试工具函数...");
+    
+    // 测试 findElement 函数
+    simpleUtils.findElement('text("设置")', 2000).then(function(element) {
+        if (element) {
+            log("✓ findElement() 工作正常 - 找到元素");
+        } else {
+            log("⚠ findElement() 工作正常 - 未找到元素（这可能正常）");
+        }
+    }).catch(function(e) {
+        log("✗ findElement() 测试失败: " + e);
+    });
+}
+
+// 引擎功能测试
+function runEngineTest() {
+    if (!ensureAccessibilityService()) return;
+    
+    log("开始引擎功能测试...");
+    
+    var testTask = {
+        name: "引擎功能测试",
+        packageName: "com.android.settings", // 使用系统设置进行测试
+        config: {
+            steps: [
+                { 
+                    action: "launch", 
+                    description: "启动设置应用",
+                    params: { timeout: 3000 }
+                },
+                { 
+                    action: "wait_exists", 
+                    description: "等待设置界面加载",
+                    params: { selector: 'text("设置") || text("Settings")', timeout: 5000 }
+                },
+                { 
+                    action: "sleep", 
+                    description: "短暂停留确认界面",
+                    params: { duration: 1000 }
+                }
+            ]
+        }
+    };
+    
+    updateStatus("引擎测试中");
+    
+    simpleEngine.executeTask(testTask, function(progress, status) {
+        log("引擎测试进度: " + progress + "%, 状态: " + status);
+    }).then(function() {
+        log("✓ 引擎测试通过 - 基本功能正常");
+        updateStatus("引擎测试通过");
+
+        // 测试完成后返回到 AutoJs6 应用
+        setTimeout(function() {
+            returnToAutoJs6();
+        }, 1500);
+    }).catch(function(error) {
+        log("✗ 引擎测试失败: " + error);
+        updateStatus("引擎测试失败");
+    });
+}
+
+function returnToAutoJs6() {
+    try {
+        // 尝试多次按返回键回到上一个应用
+        for (var i = 0; i < 5; i++) {
+            back();
+            sleep(500);
+            
+            // 检查当前应用是否是 AutoJs6
+            if (currentPackage() === autoJs6PackageName) {
+                log("✓ 通过返回键成功回到 AutoJs6");
+                return;
+            }
+        }
+        log("⚠ 通过返回键未能回到 AutoJs6");
+    } catch (e) {
+        log("使用返回键失败: " + e);
+    }
+}
+
+setupUI();
 initialize();
