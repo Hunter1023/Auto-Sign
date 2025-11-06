@@ -149,6 +149,7 @@ function refreshTaskList() {
         };
     }
     
+    // 筛选出 enabled 属性为 true 的任务
     var tasks = appConfig.tasks.filter(function(task) {
         return task.enabled;
     });
@@ -353,7 +354,8 @@ function updateTaskStatus(index, status, color, progress) {
     if (index < taskData.length) {
         taskData[index].status = status;
         taskData[index].statusColor = color;
-        taskData[index].progress = progress;
+        // 确保progress以整数格式存为字符串
+        taskData[index].progress = String(progress);
         taskData[index].lastRun = new Date().toLocaleTimeString();
         ui.taskList.setDataSource(taskData);
     }
