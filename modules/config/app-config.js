@@ -1,145 +1,27 @@
+// 引入任务文件
+var createLongforTask = require('../task/longfor-task.js');
+
 function AppConfig() {
     this.tasks = this.loadTasks();
     this.loadSettings();
 }
 
 AppConfig.prototype.loadTasks = function() {
-    // 这里可以改为从文件加载配置
-    return [
-        {
-            id: 1,
-            name: "示例论坛",
-            packageName: "com.example.bbs",
-            enabled: true,
-            description: "论坛每日签到任务",
-            config: {
-                launchTimeout: 5000,
-                steps: [
-                    { 
-                        action: "launch", 
-                        description: "启动应用",
-                        params: { timeout: 5000 }
-                    },
-                    { 
-                        action: "wait_click", 
-                        description: "点击签到按钮",
-                        params: { selector: 'text("签到").clickable(true)', timeout: 8000 }
-                    },
-                    { 
-                        action: "wait_click", 
-                        description: "点击立即签到",
-                        params: { selector: 'text("立即签到")', timeout: 5000 }
-                    },
-                    { 
-                        action: "screenshot", 
-                        description: "保存签到结果截图",
-                        params: { path: "/sdcard/Pictures/sign_bbs_{{timestamp}}.png" }
-                    },
-                    { 
-                        action: "back", 
-                        description: "返回退出",
-                        params: { }
-                    }
-                ]
-            }
-        },
-        {
-            id: 2,
-            name: "示例商城",
-            packageName: "com.example.shop",
-            enabled: true,
-            description: "商城每日任务领取",
-            config: {
-                launchTimeout: 6000,
-                steps: [
-                    { 
-                        action: "launch", 
-                        description: "启动商城应用",
-                        params: { timeout: 6000 }
-                    },
-                    { 
-                        action: "wait_click", 
-                        description: "进入任务中心",
-                        params: { selector: 'desc("任务中心")', timeout: 8000 }
-                    },
-                    { 
-                        action: "click", 
-                        description: "领取每日奖励",
-                        params: { selector: 'text("领取") && clickable(true)', timeout: 5000 }
-                    },
-                    { 
-                        action: "swipe", 
-                        description: "滑动查看其他任务",
-                        params: { start: [500, 1500], end: [500, 500], duration: 800 }
-                    },
-                    { 
-                        action: "click", 
-                        description: "领取额外奖励",
-                        params: { selector: 'text("立即领取")', timeout: 5000 }
-                    }
-                ]
-            }
-        },
-        {
-            id: 3,
-            name: "新闻App",
-            packageName: "com.example.news",
-            enabled: false,
-            description: "新闻阅读奖励任务",
-            config: {
-                launchTimeout: 5000,
-                steps: [
-                    { 
-                        action: "launch", 
-                        description: "启动新闻应用",
-                        params: { timeout: 5000 }
-                    },
-                    { 
-                        action: "click", 
-                        description: "点击我的页面",
-                        params: { selector: 'text("我的")', timeout: 5000 }
-                    },
-                    { 
-                        action: "click", 
-                        description: "领取阅读奖励",
-                        params: { selector: 'text("领取金币")', timeout: 5000 }
-                    },
-                    { 
-                        action: "swipe_up", 
-                        description: "滑动阅读文章",
-                        params: { count: 5, duration: 1000 }
-                    }
-                ]
-            }
-        },
-        // 测试任务
-        {
-            id: 99,
-            name: "自动化测试任务",
-            packageName: "com.android.settings", // 使用系统设置应用进行测试
-            enabled: true,
-            description: "用于测试引擎和工具模块的功能",
-            config: {
-                steps: [
-                    { 
-                        action: "launch", 
-                        description: "启动设置应用",
-                        params: { timeout: 3000 }
-                    },
-                    { 
-                        action: "wait_exists", 
-                        description: "检查设置界面",
-                        params: { selector: 'text("设置") || text("Settings")', timeout: 5000 }
-                    },
-                    { 
-                        action: "click", 
-                        description: "点击搜索框",
-                        params: { selector: 'text("搜索") || desc("搜索")', timeout: 3000 }
-                    }
-                ]
-            }
-        }
-    ];
+    // 从独立文件加载任务配置，实现更好的解耦
+    var tasks = [];
+    
+    try {
+        // 添加龙湖签到任务
+        var longforTask = createLongforTask();
+        tasks.push(longforTask);
+        
+        // 可以在这里添加更多任务
+        
+    } catch (e) {
+        console.error("加载任务配置失败:", e);
+    }
+    
+    return tasks;
 };
 
 AppConfig.prototype.loadSettings = function() {

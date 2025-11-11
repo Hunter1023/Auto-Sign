@@ -1,4 +1,9 @@
 var SimpleUtils = require('../utils/simple-utils.js');
+var Logger = require('../utils/logger.js');
+
+var logger = new Logger();
+logger.setLogView(ui.logContent);
+logger.setLogLevel('INFO');
 
 function SimpleEngine() {
     this.utils = new SimpleUtils();
@@ -9,10 +14,9 @@ function SimpleEngine() {
 /**
  * 执行任务的核心方法
  * @param {Object} task 任务对象
- * @param {Function} progressCallback 进度回调函数
  * @returns {Promise} 执行结果的Promise
  */
-SimpleEngine.prototype.executeTask = function(task, progressCallback) {
+SimpleEngine.prototype.executeTask = function(task) {
     var self = this;
     self.isStopped = false;
     
@@ -24,13 +28,12 @@ SimpleEngine.prototype.executeTask = function(task, progressCallback) {
         
         self.currentExecution = {
             task: task,
-            progressCallback: progressCallback,
             resolve: resolve,
             reject: reject
         };
         
         // 开始执行任务
-        self.executeTaskSteps(task, progressCallback)
+        self.executeTaskSteps(task)
             .then(function(result) {
                 if (self.currentExecution) {
                     self.currentExecution = null;
@@ -49,7 +52,7 @@ SimpleEngine.prototype.executeTask = function(task, progressCallback) {
 /**
  * 执行任务的所有步骤
  */
-SimpleEngine.prototype.executeTaskSteps = function(task, progressCallback) {
+SimpleEngine.prototype.executeTaskSteps = function(task) {
     var self = this;
     
     return new Promise(function(resolve, reject) {
@@ -70,27 +73,18 @@ SimpleEngine.prototype.executeTaskSteps = function(task, progressCallback) {
             
             if (currentStepIndex >= totalSteps) {
                 // 所有步骤完成
-                if (progressCallback) {
-                    progressCallback(100, "任务完成");
-                }
                 resolve({ success: true, message: "任务执行完成" });
                 return;
             }
             
             var step = steps[currentStepIndex];
-            var progress = Math.floor((currentStepIndex / totalSteps) * 100);
-            
-            // 更新进度
-            if (progressCallback) {
-                progressCallback(progress, "执行步骤: " + (step.description || step.action));
-            }
             
             // 执行当前步骤
             self.executeSingleStep(step, task)
                 .then(function() {
                     currentStepIndex++;
                     // 步骤间延迟
-                    return self.utils.sleep(1000);
+                    return self.utils.sleep(2000);
                 })
                 .then(function() {
                     executeNextStep();
@@ -126,6 +120,10 @@ SimpleEngine.prototype.executeSingleStep = function(step, task) {
                     
                 case 'click':
                     actionPromise = self.clickElement(step.params.selector, step.params.timeout);
+                    break;
+
+                case 'click_img':
+                    actionPromise = self.clickImage(step.params.selector, step.params.timeout);
                     break;
                     
                 case 'wait_click':
@@ -190,18 +188,99 @@ SimpleEngine.prototype.launchApp = function(packageName, timeout) {
     });
 };
 
+SimpleEngine.prototype.clickImage = function(selector, timeout) {
+    var self = this;
+    timeout = timeout || 3000;
+    
+    return new Promise(function(resolve, reject) {
+        try {
+            // 准备OCR识别区域（默认为整个屏幕）
+            logger.info("执行OCR识别，寻找文本: " + selector);
+            var results = ocr.detect();
+            
+            // 查找目标文本
+            var targetText = selector.replace(/"/g, ''); // 移除引号
+            var targetFound = false;
+
+            logger.info("OC识别结果: " + results);
+            logger.info("OCR识别结果数量: " + results.length);
+                        
+            for (var i = 0; i < results.length; i++) {
+                var result = results[i];
+                logger.info("识别到文本: " + result.label + ", 置信度: " + result.confidence);
+                
+                if (result.label.includes(targetText) && result.confidence > 0.6) {
+                    targetFound = true;
+                    // 从bounds属性中提取坐标信息
+                    var bounds = result.bounds;
+                    // 计算文本区域中心点
+                    var centerX = (bounds.left + bounds.right) / 2;
+                    var centerY = (bounds.top + bounds.bottom) / 2;
+                    
+                    logger.info("找到目标文本，中心点坐标: x=" + centerX + ", y=" + centerY);
+                    
+                    // 执行点击操作
+                    var clickSuccess = click(centerX, centerY);
+                    
+                    if (clickSuccess) {
+                        logger.info("点击成功");
+                        resolve({ success: true, method: "ocr", text: result.label, confidence: result.confidence, position: { x: centerX, y: centerY } });
+                    } else {
+                        throw new Error("点击失败");
+                    }
+                    break;
+                }
+            }
+            
+            if (!targetFound) {
+                throw new Error("未找到目标文本: " + targetText);
+            }
+        } catch (error) {
+            logger.error("OCR点击过程中发生错误: " + error.message);
+            reject(error);
+        }
+    });
+}
+
 SimpleEngine.prototype.clickElement = function(selector, timeout) {
     var self = this;
-    
-    return self.utils.findElement(selector, timeout)
-        .then(function(element) {
-            if (element) {
-                element.click();
-                return true;
-            } else {
-                throw new Error("未找到元素: " + selector);
-            }
-        });
+    return new Promise(function(reject) {
+        self.utils.findElement(selector, timeout)
+            .then(function(element) {
+                if (element) {
+                    var clickSuccess = false;
+                    try {
+                        if (element.clickable()) {
+                            // 如果元素可点击，使用正常的cLick方法
+                            element.click();
+                            clickSuccess = true;
+                        } else {
+                            logger.info("元素不可点击，使用坐标点击方式");
+                            clickSuccess = click(element.centerX, element.centerY);
+                        }
+                        
+                        if (clickSuccess) {
+                            logger.info("点击操作执行完成");
+                            resolve();
+                        } else {
+                            logger.error("点击操作失败");
+                            reject(new Error("点击操作执行失败"));
+                        }
+                    } catch (error) {
+                        logger.error("点击元素时发生错误: " + error.message);
+                        reject(new Error("点击元素失败: " + error.message));
+                    }
+                } else {
+                    var errorMsg = "未找到元素: " + selector;
+                    logger.error(errorMsg);
+                    reject(new Error(errorMsg));
+                }
+            })
+            .catch(function(error) {
+                logger.error("查找元素时发生错误: " + (error ? error.message : "未知错误"));
+                reject(error);
+            });
+    });
 };
 
 SimpleEngine.prototype.waitAndClick = function(selector, timeout) {
@@ -224,13 +303,36 @@ SimpleEngine.prototype.waitAndClick = function(selector, timeout) {
             self.utils.findElement(selector, 1000)
                 .then(function(element) {
                     if (element) {
-                        element.click();
-                        resolve();
+                        var clickSuccess = false;
+                        
+                        try {
+                            if (element.clickable()) {
+                                // 如果元素可点击，使用正常的click方法
+                                element.click();
+                                clickSuccess = true;
+                            } else {
+                                logger.info("元素不可点击，使用坐标点击方式");
+                                clickSuccess = click(element.center().x, element.center().y);
+                            }
+                            if (clickSuccess) {
+                                logger.info("点击操作执行完成");
+                                resolve(); // 标记步骤成功完成
+                            } else {
+                                logger.error("点击操作失败");
+                                reject(new Error("点击操作执行失败"));
+                            }
+                        } catch (error) {
+                            logger.error("点击元素时发生错误: " + error.message);
+                            reject(new Error("点击元素失败：" + error.message));
+                        }
                     } else {
-                        setTimeout(checkAndClick, 500);
+                        var errorMsg = "未找到元素： " + selector;
+                        logger.info(errorMsg);
+                        reject(new Error(errorMsg));
                     }
                 })
-                .catch(function() {
+                .catch(function(error) {
+                    logger.error("查找元素时发生错误: " + (error ? error.message : "未知错误"));
                     setTimeout(checkAndClick, 500);
                 });
         }

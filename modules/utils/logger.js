@@ -31,7 +31,34 @@ Logger.prototype.enableFileLogging = function(enable, filePath) {
 
 Logger.prototype.log = function(level, message) {
     var timestamp = new Date().toLocaleTimeString();
-    var logEntry = "[" + timestamp + "] " + level + ": " + message;
+    
+    // 获取调用者的代码位置信息
+    var callerInfo = '';
+    try {
+        var stack = new Error().stack;
+        if (stack) {
+            // 堆栈格式通常为: Error
+            // at Logger.log (file_path:line:column)
+            // at Logger.info/debug/warn/error (file_path:line:column)
+            // at calling_function (file_path:line:column)
+            var stackLines = stack.split('\n');
+            // 通常第三行是实际调用日志方法的代码位置
+            if (stackLines.length >= 4) {
+                var callerLine = stackLines[3]; // 索引从0开始，第三行是实际调用位置
+                // 提取文件路径和行号
+                var match = callerLine.match(/\(([^:]+):(\d+):\d+\)/);
+                if (match && match.length >= 3) {
+                    var filePath = match[1];
+                    var lineNumber = match[2];
+                    callerInfo = " [" + filePath + ":" + lineNumber + "]";
+                }
+            }
+        }
+    } catch (e) {
+        // 如果获取堆栈信息失败，不影响日志输出
+    }
+    
+    var logEntry = "[" + timestamp + "] " + level + ": " + message + callerInfo;
     
     // 等级过滤
     var levels = { 'DEBUG': 0, 'INFO': 1, 'WARN': 2, 'ERROR': 3 };

@@ -1,3 +1,9 @@
+var Logger = require('./logger.js');
+
+var logger = new Logger();
+logger.setLogView(ui.logContent);
+logger.setLogLevel('INFO');
+
 function SimpleUtils() {
     this.deviceInfo = this.getDeviceInfo();
 }
@@ -16,7 +22,7 @@ SimpleUtils.prototype.findElement = function(selector, timeout) {
     var self = this;
     timeout = timeout || 5000;
 
-    return new Promise(function(resolve, reject) {
+    return new Promise(function(resolve) {
         // 在新线程中执行查找操作
         threads.start(function() {
             var startTime = Date.now();
@@ -27,6 +33,7 @@ SimpleUtils.prototype.findElement = function(selector, timeout) {
                     if (selector.startsWith('text(')) {
                         var str = selector.match(/text\("([^"]+)"\)/)[1];
                         element = text(str).findOne(100);
+                        logger.log("text(\"" + str + "\"): ", element);
                     } else if (selector.startsWith('desc(')) {
                         var str = selector.match(/desc\("([^"]+)"\)/)[1];
                         element = desc(str).findOne(100);
@@ -60,7 +67,6 @@ SimpleUtils.prototype.findElement = function(selector, timeout) {
         });
     });
 };
-    
 
 /**
  * 使用条件查找元素（同样需要在子线程中执行）

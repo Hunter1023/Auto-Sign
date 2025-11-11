@@ -2,6 +2,7 @@
 
 var SimpleUtils = require('./modules/utils/simple-utils.js');
 var SimpleEngine = require('./modules/core/simple-engine.js');
+var Logger = require('./modules/utils/logger.js');
 
 // 第一步：基础UI布局
 function setupUI() {
@@ -14,21 +15,14 @@ function setupUI() {
                 </horizontal>
                 
                 {/* <!-- 控制按钮 --> */}
-                <horizontal gravity="center" margin="0 0 12 0">
-                    <button id="btnStartAll" text="开始全部任务" layout_weight="1"/>
-                    <button id="btnStopAll" text="停止所有任务" layout_weight="1"/>
+                <horizontal layout_width="match_parent" margin="0 0 12 0">
+                    <button id="btnStartAll" text="开始全部任务" layout_weight="1" layout_width="0dp" gravity="center"/>
+                    <button id="btnStopAll" text="停止所有任务" layout_weight="1" layout_width="0dp" gravity="center"/>
                 </horizontal>
                 
-                <horizontal gravity="center" margin="0 0 12 0">
-                    <button id="btnSingleTest" text="单任务测试" layout_weight="1"/>
-                    <button id="btnRefresh" text="刷新" layout_weight="1"/>
-                </horizontal>
-
-                {/* <!-- 测试按钮 --> */}
-                <horizontal gravity="center_vertical" margin="0 0 12 0">
-                    <button id="btnHealthCheck" text="健康检查" layout_weight="1"/>
-                    <button id="btnEngineTest" text="引擎测试" layout_weight="1"/>
-                    <button id="btnRefresh" text="刷新" layout_weight="1"/>
+                <horizontal layout_width="match_parent" margin="0 0 12 0">
+                    <button id="btnSingleTask" text="开始指定任务" layout_weight="1" layout_width="0dp" gravity="center"/>
+                    <button id="btnRefresh" text="刷新" layout_weight="1" layout_width="0dp" gravity="center"/>
                 </horizontal>
                 
                 {/* <!-- 任务列表 --> */}
@@ -38,9 +32,9 @@ function setupUI() {
                         <vertical padding="12" margin="4" bg="#ffffff" cornerRadius="8">
                             <horizontal gravity="center_vertical">
                                 <text text="{{appName}}" textSize="16sp" layout_weight="1" textStyle="bold"/>
-                                <text text="{{status}}" textColor="{{statusColor}}" textSize="14sp"/>
+                                <text text="{{status}}" textColor="{{statusColor}}" textSize="14sp" marginLeft="16dp"/>
                             </horizontal>
-                            <progressbar progress="{{progress}}" max="100" margin="8 0 4 0"/>
+                            {/* <progressbar progress="{{progress}}" max="100" margin="8 0 4 0"/> */}
                             <horizontal>
                                 <text text="{{lastRun}}" textSize="11sp" textColor="#999999"/>
                             </horizontal>
@@ -72,16 +66,20 @@ function setupUI() {
 
 // 第二步：基础功能实现
 var taskData = [];
-var logLines = [];
-var maxLogLines = 50;
 var isRunning = false;
 var appConfig = null;
 var simpleUtils = null;
 var simpleEngine = null;
+var logger = null;
 
 // 初始化应用
 function initialize() {
     try {
+        // 初始化日志系统
+        logger = new Logger();
+        logger.setLogView(ui.logContent);
+        logger.setLogLevel('INFO');
+        
         // 初始化工具和引擎
         simpleUtils = new SimpleUtils();
         simpleEngine = new SimpleEngine();
@@ -95,60 +93,44 @@ function initialize() {
         // 绑定事件
         bindEvents();
         
-        log("应用初始化完成");
-        log("工具模块和引擎初始化成功");
+        logger.info("应用初始化完成");
+        logger.info("工具模块和引擎初始化成功");
         updateStatus("就绪");
     } catch (e) {
-        log("初始化失败: " + e.toString());
+        logger.error("初始化失败: " + e.toString());
         console.error("初始化错误:", e);
     }
 }
 
-// 配置数据（内联，避免文件加载问题）
+// 加载外部配置文件
 function loadConfig() {
-    appConfig = {
-        tasks: [
-            {
-                id: 1,
-                name: "示例论坛",
-                packageName: "com.example.bbs",
-                enabled: true,
-                config: {
-                    steps: [
-                        { action: "launch", timeout: 5000 },
-                        { action: "click", selector: 'text("签到")', timeout: 3000 },
-                        { action: "click", selector: 'text("立即签到")', timeout: 3000 }
-                    ]
+    try {
+        logger.info("正在加载配置文件...");
+        var AppConfigClass = require('./modules/config/app-config.js');
+        var configInstance = new AppConfigClass();
+        appConfig = {
+            tasks: configInstance.getActiveTasks(),
+            settings: configInstance.getSettings()
+        };
+        logger.info("配置文件加载成功，共加载 " + (appConfig.tasks ? appConfig.tasks.length : 0) + " 个任务");
+    } catch (e) {
+        logger.error("配置文件加载失败: " + e.toString());
+        console.error("配置加载错误:", e);
+        
+        // 如果配置加载失败，使用默认任务
+        logger.warn("使用默认任务配置");
+        appConfig = {
+            tasks: [
+                {
+                    id: 1,
+                    name: "示例任务",
+                    packageName: "com.example.app",
+                    enabled: true,
+                    config: { steps: [] }
                 }
-            },
-            {
-                id: 2,
-                name: "示例商城",
-                packageName: "com.example.shop", 
-                enabled: true,
-                config: {
-                    steps: [
-                        { action: "launch", timeout: 5000 },
-                        { action: "click", selector: 'desc("任务中心")', timeout: 3000 },
-                        { action: "click", selector: 'text("领取")', timeout: 3000 }
-                    ]
-                }
-            },
-            {
-                id: 3,
-                name: "新闻App",
-                packageName: "com.example.news",
-                enabled: false,
-                config: {
-                    steps: [
-                        { action: "launch", timeout: 5000 },
-                        { action: "click", selector: 'text("我的")', timeout: 3000 },
-                        { action: "click", selector: 'text("领取金币")', timeout: 3000 }
-                    ]
-                }
-            }
-        ]
-    };
+            ]
+        };
+    }
 }
 
 // 刷新任务列表
@@ -177,10 +159,9 @@ function refreshTaskList() {
     taskData = tasks.map(function(task) {
         return {
             appName: task.name,
-            packageName: task.packageName,
             status: '等待中',
             statusColor: '#666666',
-            progress: 0,
+            // progress: String(60),
             lastRun: '未执行'
         };
     });
@@ -188,22 +169,17 @@ function refreshTaskList() {
     ui.taskList.setDataSource(taskData);
 }
 
-// 日志功能
+// 日志功能（使用Logger类）
 function log(message) {
-    var timestamp = new Date().toLocaleTimeString();
-    var logEntry = "[" + timestamp + "] " + message;
-    
-    logLines.push(logEntry);
-    if (logLines.length > maxLogLines) {
-        logLines.shift();
-    }
-    
-    ui.logContent.setText(logLines.join("\n"));
+    logger.info(message);
 }
 
 // 更新状态
 function updateStatus(text) {
-    ui.statusText.setText(text);
+    // 确保在UI线程中更新UI
+    ui.run(function() {
+        ui.statusText.setText(text);
+    });
 }
 
 // 绑定事件
@@ -223,7 +199,7 @@ function bindEvents() {
         stopAllTasks();
     });
     
-    ui.btnSingleTest.click(function() {
+    ui.btnSingleTask.click(function() {
         if (!ensureAccessibilityService()) return;
         
         showTaskSelectionDialog();
@@ -235,22 +211,12 @@ function bindEvents() {
     });
     
     ui.btnClearLog.click(function() {
-        logLines = [];
-        ui.logContent.setText("日志已清空");
-        log("清空日志");
+        logger.clear();
+        logger.info("清空日志");
     });
     
     ui.taskList.on("item_click", function(item, i, itemView, listView) {
         showTaskDetail(i);
-    });
-
-    // 测试按钮事件
-    ui.btnHealthCheck.click(function() {
-        healthCheck();
-    });
-    
-    ui.btnEngineTest.click(function() {
-        runEngineTest();
     });
 }
 
@@ -300,13 +266,11 @@ function executeTasksSequentially(tasks, index) {
     log("开始任务: " + task.name);
     
     // 更新任务状态为执行中
-    updateTaskStatus(index, "执行中", "#FF9800", 30);
+    updateTaskStatus(index, "执行中", "#FF9800");
 
-    
-    // 模拟任务执行（实际使用时替换为真实的任务执行逻辑）
-    taskExecution(task, index).then(function() {
+    taskExecution(task).then(function() {
         // 任务完成
-        updateTaskStatus(index, "完成", "#4CAF50", 100);
+        updateTaskStatus(index, "完成", "#4CAF50");
         log("任务完成: " + task.name);
         
         // 执行下一个任务
@@ -326,25 +290,31 @@ function executeTasksSequentially(tasks, index) {
 }
 
 
-function taskExecution(task, index) {
+function taskExecution(task) {
     return new Promise(function(resolve, reject) {
         if (!isRunning) {
             reject(new Error("任务已被停止"));
             return;
         }
-        
-        log("开始真实执行任务: " + task.name);
-        
         // 使用 SimpleEngine 执行任务
-        simpleEngine.executeTask(task, function(progress, status) {
-            // 更新进度回调
-            var actualProgress = 20 + Math.floor(progress * 0.8); // 映射到20-100的进度范围
-            updateTaskStatus(index, status, "#FF9800", actualProgress);
-        }).then(function(result) {
+        simpleEngine.executeTask(task).then(function(result) {
             log("任务执行成功: " + task.name);
+            sleep(2000);
+            // 获取应用名称（通过包名）
+            var appName = app.getAppName(currentPackage());
+            // 打开最近任务列表
+            recents();
+            killAppMethod(appName);
+            returnToAutoJs6();
             resolve(result);
         }).catch(function(error) {
             log("任务执行失败: " + task.name + " - " + error);
+            // 获取应用名称（通过包名）
+            var appName = app.getAppName(currentPackage());
+            // 打开最近任务列表
+            recents();
+            killAppMethod(appName);
+            returnToAutoJs6();
             reject(error);
         });
     });
@@ -370,14 +340,17 @@ function stopAllTasks() {
 }
 
 // 更新任务状态
-function updateTaskStatus(index, status, color, progress) {
+function updateTaskStatus(index, status, color) {
     if (index < taskData.length) {
+        // 更新数据模型（可以在任何线程执行）
         taskData[index].status = status;
         taskData[index].statusColor = color;
-        // 确保progress以整数格式存为字符串
-        taskData[index].progress = String(progress);
         taskData[index].lastRun = new Date().toLocaleTimeString();
-        ui.taskList.setDataSource(taskData);
+        
+        // 确保在UI线程中更新UI
+        ui.run(function() {
+            ui.taskList.setDataSource(taskData);
+        });
     }
 }
 
@@ -396,35 +369,38 @@ function showTaskSelectionDialog() {
         return task.name + " (" + task.packageName + ")";
     });
     
-    dialogs.select("选择要测试的任务", items).then(function(index) {
+    dialogs.select("选择要执行的任务", items).then(function(index) {
         if (index >= 0) {
-            testSingleTask(activeTasks[index], index);
+            executeSingleTask(activeTasks[index], index);
         }
     });
 }
 
-// 测试单个任务
-function testSingleTask(task, index) {
+// 执行单个任务
+function executeSingleTask(task, index) {
     if (isRunning) {
         log("有其他任务正在运行，请等待完成");
         return;
     }
     
     isRunning = true;
-    log("开始测试单任务: " + task.name);
     updateStatus("测试中: " + task.name);
     
-    updateTaskStatus(index, "测试中", "#FF9800", 30);
+    updateTaskStatus(index, "执行中", "#FF9800");
     
-    simulateTaskExecution(task, index).then(function() {
-        updateTaskStatus(index, "测试完成", "#4CAF50", 100);
-        log("单任务测试完成: " + task.name);
-        updateStatus("测试完成");
+    taskExecution(task, index).then(function() {
+        updateTaskStatus(index, "执行完成", "#4CAF50");
+        log("单任务执行完成: " + task.name);
+        log("返回 AutoJs6 界面...");
+        returnToAutoJs6();
+        updateStatus("执行完成");
         isRunning = false;
     }).catch(function(error) {
-        updateTaskStatus(index, "测试失败", "#F44336", 0);
-        log("单任务测试失败: " + task.name + " - " + error);
-        updateStatus("测试失败");
+        updateTaskStatus(index, "执行失败", "#F44336");
+        log("单任务执行失败: " + task.name + " - " + error);
+        log("返回 AutoJs6 界面...");
+        returnToAutoJs6();
+        updateStatus("执行失败");
         isRunning = false;
     });
 }
@@ -446,11 +422,11 @@ function showTaskDetail(index) {
                 "状态: " + currentStatus.status + "\n" +
                 "步骤数: " + task.config.steps.length + "\n" +
                 "最后执行: " + currentStatus.lastRun,
-        positive: "测试运行",
+        positive: "执行运行",
         negative: "关闭",
         neutral: "禁用任务"
     }).on("positive", function() {
-        testSingleTask(task, index);
+        executeSingleTask(task, index);
     }).on("neutral", function() {
         task.enabled = false;
         refreshTaskList();
@@ -458,129 +434,54 @@ function showTaskDetail(index) {
     }).show();
 }
 
-// 模块健康检查
-function healthCheck() {
-    return new Promise(function(resolve) {
-        log("开始模块健康检查...");
+// 通过最近任务列表滑动关闭应用的方法
+function killAppMethod(name) {
+    try {
+        log("通过最近任务列表滑动关闭应用: " + name);
+        sleep(1000);
         
-        var checks = [];
-        
-        // 检查 SimpleUtils
-        if (simpleUtils) {
-            checks.push("✓ SimpleUtils 加载正常");
-            
-            // 测试 sleep 功能
-            simpleUtils.sleep(100).then(function() {
-                log("✓ SimpleUtils.sleep() 工作正常");
-            }).catch(function(e) {
-                log("✗ SimpleUtils.sleep() 测试失败: " + e);
-            });
-        } else {
-            checks.push("✗ SimpleUtils 加载失败");
+        // 查找目标应用卡片
+        var appCard = desc(name + ",未加锁").findOne(1000);
+        var bounds = appCard.bounds();
+        log("找到应用卡片，执行滑动操作");
+        // 从应用卡片中心滑动到屏幕右侧
+        swipe(bounds.centerX(), bounds.centerY(), device.width, bounds.centerY(), 300);
+        sleep(1000);
+        log("成功通过最近任务列表滑动关闭应用");
+        return true;
+    } catch (error) {
+        log("通过最近任务列表滑动关闭应用失败: " + error);
+        try {
+            home(); // 尝试返回桌面
+            sleep(1000);
+        } catch (e) {
+            log("返回桌面失败: " + e);
         }
-        
-        // 检查 SimpleEngine
-        if (simpleEngine) {
-            checks.push("✓ SimpleEngine 加载正常");
-        } else {
-            checks.push("✗ SimpleEngine 加载失败");
-        }
-        
-        // 显示检查结果
-        setTimeout(function() {
-            checks.forEach(function(check) {
-                log(check);
-            });
-            
-            // 测试工具函数
-            testUtilsFunctions();
-            
-            log("健康检查完成");
-            resolve();
-        }, 500);
-    });
-}
-
-// 测试工具函数
-function testUtilsFunctions() {
-    log("测试工具函数...");
-    
-    // 测试 findElement 函数
-    simpleUtils.findElement('text("设置")', 2000).then(function(element) {
-        if (element) {
-            log("✓ findElement() 工作正常 - 找到元素");
-        } else {
-            log("⚠ findElement() 工作正常 - 未找到元素（这可能正常）");
-        }
-    }).catch(function(e) {
-        log("✗ findElement() 测试失败: " + e);
-    });
-}
-
-// 引擎功能测试
-function runEngineTest() {
-    if (!ensureAccessibilityService()) return;
-    
-    log("开始引擎功能测试...");
-    
-    var testTask = {
-        name: "引擎功能测试",
-        packageName: "com.android.settings", // 使用系统设置进行测试
-        config: {
-            steps: [
-                { 
-                    action: "launch", 
-                    description: "启动设置应用",
-                    params: { timeout: 3000 }
-                },
-                { 
-                    action: "wait_exists", 
-                    description: "等待设置界面加载",
-                    params: { selector: 'text("设置") || text("Settings")', timeout: 5000 }
-                },
-                { 
-                    action: "sleep", 
-                    description: "短暂停留确认界面",
-                    params: { duration: 1000 }
-                }
-            ]
-        }
-    };
-    
-    updateStatus("引擎测试中");
-    
-    simpleEngine.executeTask(testTask, function(progress, status) {
-        log("引擎测试进度: " + progress + "%, 状态: " + status);
-    }).then(function() {
-        log("✓ 引擎测试通过 - 基本功能正常");
-        updateStatus("引擎测试通过");
-
-        // 测试完成后返回到 AutoJs6 应用
-        setTimeout(function() {
-            returnToAutoJs6();
-        }, 1500);
-    }).catch(function(error) {
-        log("✗ 引擎测试失败: " + error);
-        updateStatus("引擎测试失败");
-    });
+        return false;
+    }
 }
 
 function returnToAutoJs6() {
-    try {
-        // 尝试多次按返回键回到上一个应用
-        for (var i = 0; i < 5; i++) {
-            back();
-            sleep(500);
+    log("尝试关闭当前应用并返回 AutoJs6 界面");
+    // 通过最近任务列表滑动关闭应用
+    if (typeof recents === 'function') {
+        // 在最近任务列表中查找AutoJs6
+        var autoJsCard = desc("AutoJs6,未加锁").findOne(2000);
+        if (autoJsCard) {
+            log("找到 AutoJs6 在最近任务列表中，尝试点击打开");
+            autoJsCard.click();
+            sleep(1000);
             
-            // 检查当前应用是否是 AutoJs6
-            if (currentPackage() === autoJs6PackageName) {
-                log("✓ 通过返回键成功回到 AutoJs6");
+            // 检查是否成功打开AutoJs6
+            if (currentPackage() === "org.autojs.autojs6") {
+                log("✓ 通过最近任务列表成功打开 AutoJs6");
                 return;
+            } else {
+                log("点击最近任务列表中的AutoJs6失败，尝试其他方式");
             }
+        } else {
+            log("在最近任务列表中未找到 AutoJs6");
         }
-        log("⚠ 通过返回键未能回到 AutoJs6");
-    } catch (e) {
-        log("使用返回键失败: " + e);
     }
 }
 
