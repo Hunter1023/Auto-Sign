@@ -27,6 +27,7 @@ Ctrl + Shift + P 打开命令面板，输入 `AutoJs: Create New Project` 并回
 
 ## 初始目录结构
 
+```bash
 ├─.internal
 ├─Declarations         # 代码智能补全声明
 ├─modules              # 功能模块
@@ -35,3 +36,14 @@ Ctrl + Shift + P 打开命令面板，输入 `AutoJs: Create New Project` 并回
 │  package.json        # 项目依赖
 │  project.json        # 项目配置
 │  tsconfig.json       # 定义TypeScript编译规则
+```
+
+---
+## 当前功能
+
+- 龙湖App签到
+
+---
+## 开发中功能
+
+- 微软必应App积分获取
