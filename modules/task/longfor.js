@@ -1,10 +1,10 @@
 // 龙湖签到任务配置文件
-function createLongforTask() {
+function LongforTask() {
     return {
         id: 1,
         name: "龙湖",
         packageName: "com.longfor.supera",
-        enabled: true,
+        enabled: true, // 是否启用该任务
         description: "龙湖App每日签到任务",
         config: {
             launchTimeout: 8000,
@@ -15,7 +15,7 @@ function createLongforTask() {
                     params: { timeout: 3000 }
                 },
                 {
-                    action: "wait_click",
+                    action: "click",
                     description: "点击会员tab",
                     params: { selector: 'text("会员")', timeout: 3000 }
                 },
@@ -30,4 +30,4 @@ function createLongforTask() {
 }
 
 // 导出任务创建函数
-module.exports = createLongforTask;
+module.exports = LongforTask;

@@ -1,7 +1,6 @@
 "ui";
 
-var SimpleUtils = require('./modules/utils/simple-utils.js');
-var SimpleEngine = require('./modules/core/simple-engine.js');
+var TaskEngine = require('./modules/core/task-engine.js');
 var Logger = require('./modules/utils/logger.js');
 
 // 第一步：基础UI布局
@@ -67,9 +66,8 @@ function setupUI() {
 // 第二步：基础功能实现
 var taskData = [];
 var isRunning = false;
-var appConfig = null;
-var simpleUtils = null;
-var simpleEngine = null;
+var taskEngine = new TaskEngine();
+var tasks = null;
 var logger = null;
 
 // 初始化应用
@@ -78,18 +76,8 @@ function initialize() {
         // 初始化日志系统
         logger = new Logger();
         logger.setLogView(ui.logContent);
-        logger.setLogLevel('INFO');
-        
-        // 初始化工具和引擎
-        simpleUtils = new SimpleUtils();
-        simpleEngine = new SimpleEngine();
-
-        // 加载配置
-        loadConfig();
-        
-        // 初始化任务数据
-        refreshTaskList();
-        
+        // 加载任务
+        loadTasks();
         // 绑定事件
         bindEvents();
         
@@ -102,76 +90,31 @@ function initialize() {
     }
 }
 
-// 加载外部配置文件
-function loadConfig() {
+// 加载任务
+function loadTasks() {
     try {
-        logger.info("正在加载配置文件...");
-        var AppConfigClass = require('./modules/config/app-config.js');
-        var configInstance = new AppConfigClass();
-        appConfig = {
-            tasks: configInstance.getActiveTasks(),
-            settings: configInstance.getSettings()
-        };
-        logger.info("配置文件加载成功，共加载 " + (appConfig.tasks ? appConfig.tasks.length : 0) + " 个任务");
+        logger.info("正在加载任务配置...");
+        var taskManager = require('./modules/core/task-manager.js');
+        tasks = taskManager.getTasks();
+        logger.info("配置文件加载成功，共加载 " + (tasks ? tasks.length : 0) + " 个任务");
+        refreshTaskList();
     } catch (e) {
         logger.error("配置文件加载失败: " + e.toString());
-        console.error("配置加载错误:", e);
-        
-        // 如果配置加载失败，使用默认任务
-        logger.warn("使用默认任务配置");
-        appConfig = {
-            tasks: [
-                {
-                    id: 1,
-                    name: "示例任务",
-                    packageName: "com.example.app",
-                    enabled: true,
-                    config: { steps: [] }
-                }
-            ]
-        };
+        throw new Error("配置文件加载失败: " + e.toString());
     }
 }
 
 // 刷新任务列表
 function refreshTaskList() {
-    if (!appConfig || !appConfig.tasks) {
-        log("配置加载失败，使用默认任务");
-        // 如果配置加载失败，使用默认任务
-        appConfig = {
-            tasks: [
-                {
-                    id: 1,
-                    name: "示例任务",
-                    packageName: "com.example.app",
-                    enabled: true,
-                    config: { steps: [] }
-                }
-            ]
-        };
-    }
-    
-    // 筛选出 enabled 属性为 true 的任务
-    var tasks = appConfig.tasks.filter(function(task) {
-        return task.enabled;
-    });
-    
     taskData = tasks.map(function(task) {
         return {
             appName: task.name,
             status: '等待中',
             statusColor: '#666666',
-            // progress: String(60),
             lastRun: '未执行'
         };
     });
-    
     ui.taskList.setDataSource(taskData);
-}
-
-// 日志功能（使用Logger类）
-function log(message) {
-    logger.info(message);
 }
 
 // 更新状态
@@ -188,7 +131,7 @@ function bindEvents() {
         if (!ensureAccessibilityService()) return;
         
         if (isRunning) {
-            log("任务正在运行中，请等待完成");
+            logger.info("任务正在运行中，请等待完成");
             return;
         }
         
@@ -207,7 +150,7 @@ function bindEvents() {
     
     ui.btnRefresh.click(function() {
         refreshTaskList();
-        log("刷新任务列表");
+        logger.info("刷新任务列表");
     });
     
     ui.btnClearLog.click(function() {
@@ -236,21 +179,15 @@ function ensureAccessibilityService() {
 // 开始所有任务
 function startAllTasks() {
     isRunning = true;
-    log("开始执行所有签到任务");
+    logger.info("开始执行所有签到任务");
     updateStatus("执行中...");
-    
-    var activeTasks = appConfig.tasks.filter(function(task) {
-        return task.enabled;
-    });
-    
-    if (activeTasks.length === 0) {
-        log("没有启用的任务");
+    if (tasks.length === 0) {
+        logger.info("没有启用的任务");
         updateStatus("无任务");
         isRunning = false;
         return;
     }
-    
-    executeTasksSequentially(activeTasks, 0);
+    executeTasksSequentially(tasks, 0);
 }
 
 // 顺序执行任务
@@ -258,12 +195,12 @@ function executeTasksSequentially(tasks, index) {
     if (index >= tasks.length || !isRunning) {
         isRunning = false;
         updateStatus("完成");
-        log("所有任务执行完成");
+        logger.info("所有任务执行完成");
         return;
     }
     
     var task = tasks[index];
-    log("开始任务: " + task.name);
+    logger.info("开始任务: " + task.description);
     
     // 更新任务状态为执行中
     updateTaskStatus(index, "执行中", "#FF9800");
@@ -271,7 +208,7 @@ function executeTasksSequentially(tasks, index) {
     taskExecution(task).then(function() {
         // 任务完成
         updateTaskStatus(index, "完成", "#4CAF50");
-        log("任务完成: " + task.name);
+        logger.info("任务完成: " + task.description);
         
         // 执行下一个任务
         setTimeout(function() {
@@ -280,7 +217,7 @@ function executeTasksSequentially(tasks, index) {
     }).catch(function(error) {
         // 任务失败
         updateTaskStatus(index, "失败", "#F44336", 0);
-        log("任务失败: " + task.name + " - " + error);
+        logger.info("任务失败: " + task.description + " - " + error);
         
         // 继续执行下一个任务
         setTimeout(function() {
@@ -296,9 +233,8 @@ function taskExecution(task) {
             reject(new Error("任务已被停止"));
             return;
         }
-        // 使用 SimpleEngine 执行任务
-        simpleEngine.executeTask(task).then(function(result) {
-            log("任务执行成功: " + task.name);
+        taskEngine.executeTask(task).then(function(result) {
+            logger.info("任务执行成功: " + task.name+ " - 结果: " + JSON.stringify(result));
             sleep(2000);
             // 获取应用名称（通过包名）
             var appName = app.getAppName(currentPackage());
@@ -308,7 +244,7 @@ function taskExecution(task) {
             returnToAutoJs6();
             resolve(result);
         }).catch(function(error) {
-            log("任务执行失败: " + task.name + " - " + error);
+            logger.info("任务执行失败: " + task.name + " - " + error);
             // 获取应用名称（通过包名）
             var appName = app.getAppName(currentPackage());
             // 打开最近任务列表
@@ -323,12 +259,12 @@ function taskExecution(task) {
 // 停止所有任务
 function stopAllTasks() {
     if (!isRunning) {
-        log("没有正在运行的任务");
+        logger.info("没有正在运行的任务");
         return;
     }
     
     isRunning = false;
-    log("正在停止所有任务...");
+    logger.info("正在停止所有任务...");
     updateStatus("已停止");
     
     // 更新所有正在执行的任务状态
@@ -356,22 +292,18 @@ function updateTaskStatus(index, status, color) {
 
 // 显示任务选择对话框
 function showTaskSelectionDialog() {
-    var activeTasks = appConfig.tasks.filter(function(task) {
-        return task.enabled;
-    });
-    
-    if (activeTasks.length === 0) {
+    if (tasks.length === 0) {
         alert("提示", "没有启用的任务");
         return;
     }
     
-    var items = activeTasks.map(function(task) {
+    var items = tasks.map(function(task) {
         return task.name + " (" + task.packageName + ")";
     });
     
     dialogs.select("选择要执行的任务", items).then(function(index) {
         if (index >= 0) {
-            executeSingleTask(activeTasks[index], index);
+            executeSingleTask(tasks[index], index);
         }
     });
 }
@@ -379,7 +311,7 @@ function showTaskSelectionDialog() {
 // 执行单个任务
 function executeSingleTask(task, index) {
     if (isRunning) {
-        log("有其他任务正在运行，请等待完成");
+        logger.info("有其他任务正在运行，请等待完成");
         return;
     }
     
@@ -390,16 +322,12 @@ function executeSingleTask(task, index) {
     
     taskExecution(task, index).then(function() {
         updateTaskStatus(index, "执行完成", "#4CAF50");
-        log("单任务执行完成: " + task.name);
-        log("返回 AutoJs6 界面...");
-        returnToAutoJs6();
+        logger.info("单任务执行完成: " + task.name);
         updateStatus("执行完成");
         isRunning = false;
     }).catch(function(error) {
         updateTaskStatus(index, "执行失败", "#F44336");
-        log("单任务执行失败: " + task.name + " - " + error);
-        log("返回 AutoJs6 界面...");
-        returnToAutoJs6();
+        logger.info("单任务执行失败: " + task.name + " - " + error);
         updateStatus("执行失败");
         isRunning = false;
     });
@@ -407,13 +335,13 @@ function executeSingleTask(task, index) {
 
 // 显示任务详情
 function showTaskDetail(index) {
-    var tasks = appConfig.tasks.filter(function(task) {
+    var tasksDetail = tasks.filter(function(task) {
         return task.enabled;
     });
     
-    if (index >= tasks.length) return;
+    if (index >= tasksDetail.length) return;
     
-    var task = tasks[index];
+    var task = tasksDetail[index];
     var currentStatus = taskData[index];
     
     dialogs.build({
@@ -430,57 +358,61 @@ function showTaskDetail(index) {
     }).on("neutral", function() {
         task.enabled = false;
         refreshTaskList();
-        log("已禁用任务: " + task.name);
+        logger.info("已禁用任务: " + task.name);
     }).show();
 }
 
 // 通过最近任务列表滑动关闭应用的方法
 function killAppMethod(name) {
     try {
-        log("通过最近任务列表滑动关闭应用: " + name);
+        logger.info("通过最近任务列表滑动关闭应用: " + name);
         sleep(1000);
         
         // 查找目标应用卡片
         var appCard = desc(name + ",未加锁").findOne(1000);
         var bounds = appCard.bounds();
-        log("找到应用卡片，执行滑动操作");
+        logger.info("找到应用卡片，执行滑动操作");
         // 从应用卡片中心滑动到屏幕右侧
         swipe(bounds.centerX(), bounds.centerY(), device.width, bounds.centerY(), 300);
         sleep(1000);
-        log("成功通过最近任务列表滑动关闭应用");
+        logger.info("成功通过最近任务列表滑动关闭应用");
         return true;
     } catch (error) {
-        log("通过最近任务列表滑动关闭应用失败: " + error);
+        logger.info("通过最近任务列表滑动关闭应用失败: " + error);
         try {
             home(); // 尝试返回桌面
             sleep(1000);
         } catch (e) {
-            log("返回桌面失败: " + e);
+            logger.info("返回桌面失败: " + e);
         }
         return false;
     }
 }
 
 function returnToAutoJs6() {
-    log("尝试关闭当前应用并返回 AutoJs6 界面");
+    logger.info("尝试关闭当前应用并返回 AutoJs6 界面");
     // 通过最近任务列表滑动关闭应用
     if (typeof recents === 'function') {
         // 在最近任务列表中查找AutoJs6
         var autoJsCard = desc("AutoJs6,未加锁").findOne(2000);
         if (autoJsCard) {
-            log("找到 AutoJs6 在最近任务列表中，尝试点击打开");
+            logger.info("找到 AutoJs6 在最近任务列表中，尝试点击打开");
             autoJsCard.click();
-            sleep(1000);
-            
+            let retry = 0;
+           while (retry < 5 && currentPackage() !== "org.autojs.autojs6") {
+                sleep(2000);
+                logger.info("当前包名: " + currentPackage());
+                retry++;
+            }
             // 检查是否成功打开AutoJs6
             if (currentPackage() === "org.autojs.autojs6") {
-                log("✓ 通过最近任务列表成功打开 AutoJs6");
+                logger.info("✓ 通过最近任务列表成功打开 AutoJs6");
                 return;
             } else {
-                log("点击最近任务列表中的AutoJs6失败，尝试其他方式");
+                logger.info("点击最近任务列表中的AutoJs6失败，尝试其他方式");
             }
         } else {
-            log("在最近任务列表中未找到 AutoJs6");
+            logger.info("在最近任务列表中未找到 AutoJs6");
         }
     }
 }

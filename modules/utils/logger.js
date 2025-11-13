@@ -2,25 +2,30 @@
 function Logger() {
     this.logView = null;
     this.maxLogLines = 100;
-    this.logLines = [];
-    this.logLevel = 'INFO'; // DEBUG, INFO, WARN, ERROR
+    this.logLines = []; // 日志行存储数组
     this.enableConsole = true;
-    this.enableFileLog = false;
-    this.logFile = null;
+    this.enableFileLog = false; // 是否启用文件日志
+    this.logFile = null; // 日志文件路径
 }
 
+/**
+ * 设置日志视图，通常是1个UI组件，用于在界面上显示日志信息
+ * 
+ * prototype属性用于定义所有实例对象共享的方法和属性
+ * 
+ * @param {*} logView 
+ */
 Logger.prototype.setLogView = function(logView) {
     this.logView = logView;
     this.updateLogView();
 };
 
-Logger.prototype.setLogLevel = function(level) {
-    var levels = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
-    if (levels.indexOf(level) !== -1) {
-        this.logLevel = level;
-    }
-};
-
+/**
+ * 启用或禁用文件日志记录
+ * 
+ * @param {boolean} enable 是否启用文件日志
+ * @param {string} filePath 日志文件路径
+ */
 Logger.prototype.enableFileLogging = function(enable, filePath) {
     this.enableFileLog = enable;
     if (enable && filePath) {
@@ -29,38 +34,44 @@ Logger.prototype.enableFileLogging = function(enable, filePath) {
     }
 };
 
+/**
+ * 记录日志
+ * @todo: 有时候生成的堆栈信息格式又不一样，需要兼容
+ * @param {string} level 日志等级 (DEBUG, INFO, WARN, ERROR)
+ * @param {string} message 日志消息
+ */
 Logger.prototype.log = function(level, message) {
-    var timestamp = new Date().toLocaleTimeString();
-    
     // 获取调用者的代码位置信息
     var callerInfo = '';
     try {
-        var stack = new Error().stack;
-        if (stack) {
-            // 堆栈格式通常为: Error
-            // at Logger.log (file_path:line:column)
-            // at Logger.info/debug/warn/error (file_path:line:column)
-            // at calling_function (file_path:line:column)
-            var stackLines = stack.split('\n');
-            // 通常第三行是实际调用日志方法的代码位置
+        // 创建Error对象来获取堆栈信息
+        var err = new Error();
+        if (err.stack) {
+            // 堆栈格式通常为: at file:/path/to/logger.js:line
+            // at file:/path/to/logger.js:line
+            // at /path/to/target.js:line (methodName)
+            // at /path/to/target.js:line
+            var stackLines = err.stack.split('\n');
             if (stackLines.length >= 4) {
-                var callerLine = stackLines[3]; // 索引从0开始，第三行是实际调用位置
+                var callerLine = stackLines[2]; // 索引从0开始，第三行是实际调用位置
                 // 提取文件路径和行号
-                var match = callerLine.match(/\(([^:]+):(\d+):\d+\)/);
+                var match = callerLine.match(/at\s+(.+):(\d+)(?:\s+\(([^)]+)\))?/);
                 if (match && match.length >= 3) {
-                    var filePath = match[1];
+                    var fileName = match[1].split('/').pop();
                     var lineNumber = match[2];
-                    callerInfo = " [" + filePath + ":" + lineNumber + "]";
+                    var functionName = match[3] || '';
+                    callerInfo = " [" + fileName + ":" + lineNumber + (functionName ? " (" + functionName + ")" : "") + "]";
                 }
             }
         }
     } catch (e) {
         // 如果获取堆栈信息失败，不影响日志输出
+        console.error("获取调用栈信息失败:", e);
     }
     
-    var logEntry = "[" + timestamp + "] " + level + ": " + message + callerInfo;
+    var logEntry = level + ": " + message + callerInfo;
     
-    // 等级过滤
+    // 日志级别过滤
     var levels = { 'DEBUG': 0, 'INFO': 1, 'WARN': 2, 'ERROR': 3 };
     if (levels[level] < levels[this.logLevel]) {
         return;
@@ -80,13 +91,12 @@ Logger.prototype.log = function(level, message) {
         }
     }
     
-    // 内存存储
+    // 内存存储，将日志条目添加到logLines数组中
     this.logLines.push(logEntry);
     if (this.logLines.length > this.maxLogLines) {
-        this.logLines.shift();
+        this.logLines.shift(); // 移除最早的日志条目
     }
-    
-    // 界面更新
+    // 更新日志视图
     this.updateLogView();
     
     // 文件记录
@@ -95,6 +105,11 @@ Logger.prototype.log = function(level, message) {
     }
 };
 
+/**
+ * 更新日志视图，将内存中的日志行显示到指定的日志视图组件中
+ * 
+ * @param {*} logView 日志视图组件，通常是一个UI元素，如TextView
+ */
 Logger.prototype.updateLogView = function() {
     if (this.logView && this.logView.setText) {
         try {
@@ -111,6 +126,11 @@ Logger.prototype.updateLogView = function() {
     }
 };
 
+/**
+ * 将日志条目写入日志文件
+ * 
+ * @param {string} logEntry 日志条目
+ */
 Logger.prototype.writeToFile = function(logEntry) {
     try {
         var logDir = files.dirname(this.logFile);
@@ -146,25 +166,8 @@ Logger.prototype.clear = function() {
     this.updateLogView();
 };
 
-Logger.prototype.getLogs = function() {
-    return this.logLines.join('\n');
-};
-
-Logger.prototype.getRecentLogs = function(count) {
-    count = count || 10;
-    return this.logLines.slice(-count).join('\n');
-};
-
-Logger.prototype.time = function(label) {
-    if (this.logLevel === 'DEBUG') {
-        console.time(label);
-    }
-};
-
-Logger.prototype.timeEnd = function(label) {
-    if (this.logLevel === 'DEBUG') {
-        console.timeEnd(label);
-    }
-};
-
+/**
+ * 将Logger类暴露给其他模块使用。
+ * module.exports是定义模块输出的特殊对象，在这个对象上定义的属性和方法可以被其他文件通过require函数引入
+ */
 module.exports = Logger;
