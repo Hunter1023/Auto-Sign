@@ -133,53 +133,71 @@ TaskEngine.prototype.launchApp = function(packageName, timeout) {
     });
 };
 
-TaskEngine.prototype.clickImage = function(selector) {
+TaskEngine.prototype.clickImage = function(selector, retryCount, retryInterval) {
     var self = this;
+    retryCount = retryCount || 3; // 默认重试3次
+    retryInterval = retryInterval || 500; // 默认重试间隔500ms
+    
     return new Promise(function(resolve, reject) {
-        try {
-            // 准备OCR识别区域（默认为整个屏幕）
-            logger.info("执行OCR识别，寻找文本: " + selector);
-            var results = ocr.detect();
-            
-            // 查找目标文本
-            var targetText = selector.replace(/"/g, ''); // 移除引号
-            var targetFound = false;
-
-            // logger.debug("OCR识别结果: " + results);
-                        
-            for (var i = 0; i < results.length; i++) {
-                var result = results[i];
-                // logger.debug("识别到文本: " + result.label + ", 置信度: " + result.confidence);
+        var lastError = null;
+        
+        function attemptOCR(retryLeft) {
+            try {
+                // 准备OCR识别区域（默认为整个屏幕）
+                logger.info("执行OCR识别，寻找文本: " + selector + (retryLeft < retryCount ? ` (剩余重试次数: ${retryLeft})` : ""));
+                var results = ocr.detect();
                 
-                if (result.label.includes(targetText) && result.confidence > 0.6) {
-                    targetFound = true;
-                    // 从bounds属性中提取坐标信息
-                    var bounds = result.bounds;
-                    // 计算文本区域中心点
-                    var centerX = (bounds.left + bounds.right) / 2;
-                    var centerY = (bounds.top + bounds.bottom) / 2;
+                // 查找目标文本
+                var targetText = selector.replace(/"/g, ''); // 移除引号
+                var targetFound = false;
+
+                // logger.debug("OCR识别结果: " + results);
+                            
+                for (var i = 0; i < results.length; i++) {
+                    var result = results[i];
+                    // logger.debug("识别到文本: " + result.label + ", 置信度: " + result.confidence);
                     
-                    // 执行点击操作
-                    var clickSuccess = click(centerX, centerY);
-                    
-                    if (clickSuccess) {
-                        logger.info("点击成功");
-                        resolve({ success: true, method: "ocr", text: result.label, confidence: result.confidence, position: { x: centerX, y: centerY } });
-                    } else {
-                        throw new Error("点击失败");
+                    if (result.label.includes(targetText) && result.confidence > 0.6) {
+                        targetFound = true;
+                        // 从bounds属性中提取坐标信息
+                        var bounds = result.bounds;
+                        // 计算文本区域中心点
+                        var centerX = (bounds.left + bounds.right) / 2;
+                        var centerY = (bounds.top + bounds.bottom) / 2;
+                        
+                        // 执行点击操作
+                        var clickSuccess = click(centerX, centerY);
+                        
+                        if (clickSuccess) {
+                            logger.info("点击成功");
+                            resolve({ success: true, method: "ocr", text: result.label, confidence: result.confidence, position: { x: centerX, y: centerY } });
+                            return;
+                        } else {
+                            throw new Error("点击失败");
+                        }
                     }
-                    break;
+                }
+                
+                if (!targetFound) {
+                    throw new Error("未找到目标文本: " + targetText);
+                }
+                
+                sleep(2000); // 等待一段时间后再进行下一步操作
+            } catch (error) {
+                lastError = error;
+                logger.error(`OCR点击过程中发生错误: ${error.message}${retryLeft > 0 ? `，将在${retryInterval}ms后重试` : ""}`);
+                
+                if (retryLeft > 0) {
+                    setTimeout(function() {
+                        attemptOCR(retryLeft - 1);
+                    }, retryInterval);
+                } else {
+                    reject(new Error(`OCR点击失败: ${error.message} (已重试${retryCount}次)`));
                 }
             }
-            
-            if (!targetFound) {
-                throw new Error("未找到目标文本: " + targetText);
-            }
-            sleep(2000); // 等待一段时间后再进行下一步操作
-        } catch (error) {
-            logger.error("OCR点击过程中发生错误: " + error.message);
-            reject(error);
         }
+        
+        attemptOCR(retryCount);
     });
 }
 
