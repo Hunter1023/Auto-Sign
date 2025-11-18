@@ -11,17 +11,17 @@ function LongforTask() {
                 {
                     action: "launch",
                     description: "启动龙湖App",
-                    params: { timeout: 3000 }
+                    timeout: 3000
                 },
                 {
-                    action: "click",
+                    action: "click_text",
                     description: "点击会员tab",
-                    params: { selector: 'text("会员")', timeout: 3000 }
+                    text: "会员"
                 },
                 {
                     action: "click_img",
                     description: "查找并点击去签到图片",
-                    params: { selector: '"去签到"', timeout: 5000 }
+                    text: "去签到"
                 }
             ]
         }
