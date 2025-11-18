@@ -11,22 +11,22 @@ function BingTask() {
                 {
                     action: "launch",
                     description: "启动必应App",
-                    params: { timeout: 3000 }
+                    timeout: 3000
                 },
                 {
                     action: "click_desc",
-                    description: "点击\"应用\"tab",
-                    params: { selector: 'desc("应用")', timeout: 3000 }
+                    description: '点击"应用\"tab',
+                    desc: "应用"
                 },
                 {
                     action: "click_desc",
-                    description: "点击\"Rewards\"",
-                    params: { selector: 'desc("Rewards item 1 of 6")', timeout: 5000 }
+                    description: '点击"Rewards"',
+                    desc: "Rewards item 1 of 6"
                 },
                 {               
                     action: "click_to_earn_3points_loop",
-                    description: "点击可以赚取3积分的控件，直到没有可以点击的desc以\" 3\"收尾的控件",
-                    params: { selector: 'desc(/(.+ 3)/)' }       
+                    description: '点击可以赚取3积分的控件，直到没有可以点击的desc以" 3"收尾的控件',
+                    regExp: "(.+ 3)"       
                 }
 
                 /** 2. 阅读以赚取：屏幕下滑，存在 id("read") 的控件，就点击 desc("主页")控件，

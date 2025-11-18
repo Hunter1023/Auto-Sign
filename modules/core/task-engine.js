@@ -91,19 +91,23 @@ TaskEngine.prototype.executeSingleStep = function(step, task) {
         
         try {
             var actionPromise;
+            logger.info("开始执行步骤: " + step.description);
             
             switch (step.action) {
                 case 'launch':
-                    actionPromise = self.launchApp(task.packageName, step.params.timeout);
+                    actionPromise = self.launchApp(task.packageName);
+                    break;
+                case 'click_text':
+                    actionPromise = self.clickByText(step.text);
                     break;
                 case 'click_desc':
-                    actionPromise = self.clickElement(step.params.selector, step.params.timeout);
+                    actionPromise = self.clickByDesc(step.desc);
                     break;
                 case 'click_img':
-                    actionPromise = self.clickImage(step.params.selector, step.params.timeout);
+                    actionPromise = self.clickImage(step.text);
                     break;
                 case 'click_to_earn_3points_loop':
-                    actionPromise = self.executeLoop(step);
+                    actionPromise = self.executeLoop(step.regExp);
                     break;
                 default:
                     reject(new Error("未知的操作类型: " + step.action));
@@ -139,7 +143,7 @@ TaskEngine.prototype.launchApp = function(packageName, timeout) {
     });
 };
 
-TaskEngine.prototype.clickImage = function(selector, retryCount, retryInterval) {
+TaskEngine.prototype.clickImage = function(text, retryCount, retryInterval) {
     var self = this;
     retryCount = retryCount || 3; // 默认重试3次
     retryInterval = retryInterval || 500; // 默认重试间隔500ms
@@ -150,20 +154,18 @@ TaskEngine.prototype.clickImage = function(selector, retryCount, retryInterval) 
         function attemptOCR(retryLeft) {
             try {
                 // 准备OCR识别区域（默认为整个屏幕）
-                logger.info("执行OCR识别，寻找文本: " + selector + (retryLeft < retryCount ? ` (剩余重试次数: ${retryLeft})` : ""));
+                logger.info("执行OCR识别，寻找文本: " + text + (retryLeft < retryCount ? ` (剩余重试次数: ${retryLeft})` : ""));
                 var results = ocr.detect();
                 
                 // 查找目标文本
-                var targetText = selector.replace(/"/g, ''); // 移除引号
                 var targetFound = false;
-
                 // logger.debug("OCR识别结果: " + results);
                             
                 for (var i = 0; i < results.length; i++) {
                     var result = results[i];
                     // logger.debug("识别到文本: " + result.label + ", 置信度: " + result.confidence);
                     
-                    if (result.label.includes(targetText) && result.confidence > 0.6) {
+                    if (result.label.includes(text) && result.confidence > 0.6) {
                         targetFound = true;
                         // 从bounds属性中提取坐标信息
                         var bounds = result.bounds;
@@ -185,7 +187,7 @@ TaskEngine.prototype.clickImage = function(selector, retryCount, retryInterval) 
                 }
                 
                 if (!targetFound) {
-                    throw new Error("未找到目标文本: " + targetText);
+                    throw new Error("未找到目标文本: " + text);
                 }
                 
                 sleep(2000); // 等待一段时间后再进行下一步操作
@@ -207,42 +209,16 @@ TaskEngine.prototype.clickImage = function(selector, retryCount, retryInterval) 
     });
 }
 
-TaskEngine.prototype.clickElement = function(selector) {
+/**
+ * 根据描述点击控件
+ * @param {String} desc 控件的描述信息
+ * @returns 
+ */
+TaskEngine.prototype.clickByDesc = function(desc) {
     var self = this;
     return new Promise(function(resolve,reject) {
-        self.findElementUtils.findElement(selector)
-            .then(function(element) {
-                if (element) {
-                    var clickSuccess = false;
-                    try {
-                        if (element.clickable()) {
-                            // 如果元素可点击，使用正常的click方法
-                            element.click();
-                            clickSuccess = true;
-                            resolve();
-                        } else {
-                            logger.info("元素不可点击，使用坐标点击方式");
-                            clickSuccess = click(element.center().x, element.center().y);
-                            resolve();
-                        }
-                        
-                        if (clickSuccess) {
-                            logger.info("点击操作执行完成");
-                            resolve();
-                        } else {
-                            logger.error("点击操作失败");
-                            reject(new Error("点击操作执行失败"));
-                        }
-                    } catch (error) {
-                        logger.error("点击元素时发生错误: " + error.message);
-                        reject(new Error("点击元素失败: " + error.message));
-                    }
-                } else {
-                    var errorMsg = "未找到元素: " + selector;
-                    logger.error(errorMsg);
-                    reject(new Error(errorMsg));
-                }
-            })
+        self.findElementUtils.findElementByDesc(desc)
+            .then(clickElement(resolve, reject, desc))
             .catch(function(error) {
                 logger.error("查找元素时发生错误: " + (error ? error.message : "未知错误"));
                 reject(error);
@@ -251,17 +227,77 @@ TaskEngine.prototype.clickElement = function(selector) {
 };
 
 /**
+ * 根据文本点击控件
+ * @param {String} text 控件的文本信息
+ * @returns 
+ */
+TaskEngine.prototype.clickByText = function(text) {
+    var self = this;
+    return new Promise(function(resolve,reject) {
+        self.findElementUtils.findElementByText(text)
+            .then(clickElement(resolve, reject, text))
+            .catch(function(error) {
+                logger.error("查找元素时发生错误: " + (error ? error.message : "未知错误"));
+                reject(error);
+            });
+    });
+};
+
+
+/**
+ * 点击控件
+ * 
+ * @param {*} resolve 
+ * @param {*} reject 
+ * @param {*} target 用于查找元素的信息
+ * @returns 
+ */
+function clickElement(resolve, reject, target) {
+    return function (element) {
+        if (element) {
+            var clickSuccess = false;
+            try {
+                if (element.clickable()) {
+                    element.click();
+                    clickSuccess = true;
+                    resolve();
+                } else {
+                    logger.info("元素不可点击，使用坐标点击方式");
+                    clickSuccess = click(element.center().x, element.center().y);
+                    resolve();
+                }
+
+                if (clickSuccess) {
+                    logger.info("点击操作执行完成");
+                    resolve();
+                } else {
+                    logger.error("点击操作失败");
+                    reject(new Error("点击操作执行失败"));
+                }
+            } catch (error) {
+                logger.error("点击元素时发生错误: " + error.message);
+                reject(new Error("点击元素失败: " + error.message));
+            }
+        } else {
+            var errorMsg = "未找到元素: " + target;
+            logger.error(errorMsg);
+            reject(new Error(errorMsg));
+        }
+    };
+}
+
+/**
  * 执行循环操作
  */
-TaskEngine.prototype.executeLoop = function(step) {
+TaskEngine.prototype.executeLoop = function(regExp) {
     var self = this;
     return new Promise(function(resolve) {
         function checkCondition() {
-            self.findElementUtils.findElement(step.params.selector)
+            self.findElementUtils.findElementByDescRegExp(regExp)
                 .then(function(element) {
                     if (element) {
                         // 执行点击操作
-                        self.clickElement(step.params.selector)
+                        element.click()
                             .then(function() {
                                 logger.info("点击成功，等待6秒...");
                                 // 等待5秒
