@@ -7,7 +7,6 @@ function LongforTask() {
         enabled: true, // 是否启用该任务
         description: "龙湖App每日签到任务",
         config: {
-            launchTimeout: 8000,
             steps: [
                 {
                     action: "launch",

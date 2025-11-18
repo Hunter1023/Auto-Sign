@@ -240,6 +240,7 @@ function taskExecution(task) {
             var appName = app.getAppName(currentPackage());
             // 打开最近任务列表
             recents();
+            sleep(1000);
             killAppMethod(appName);
             returnToAutoJs6();
             resolve(result);
@@ -370,13 +371,18 @@ function killAppMethod(name) {
         
         // 查找目标应用卡片
         var appCard = desc(name + ",未加锁").findOne(1000);
-        var bounds = appCard.bounds();
-        logger.info("找到应用卡片，执行滑动操作");
-        // 从应用卡片中心滑动到屏幕右侧
-        swipe(bounds.centerX(), bounds.centerY(), device.width, bounds.centerY(), 300);
-        sleep(1000);
-        logger.info("成功通过最近任务列表滑动关闭应用");
-        return true;
+        if (appCard) {
+            var bounds = appCard.bounds();
+            logger.info("找到应用卡片，执行滑动操作");
+            // 从应用卡片中心滑动到屏幕右侧
+            swipe(bounds.centerX(), bounds.centerY(), device.width, bounds.centerY(), 300);
+            sleep(1000);
+            logger.info("成功通过最近任务列表滑动关闭应用");
+            return true;
+        } else {
+            logger.info("未找到应用卡片");
+            return false;
+        }
     } catch (error) {
         logger.info("通过最近任务列表滑动关闭应用失败: " + error);
         try {
