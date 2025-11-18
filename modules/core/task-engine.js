@@ -65,7 +65,10 @@ TaskEngine.prototype.executeTaskSteps = function(task) {
             self.executeSingleStep(step, task)
                 .then(function() {
                     currentStepIndex++;
-                    executeNextStep();
+                    return new Promise(resolve => setTimeout(() => {
+                            executeNextStep();
+                            resolve();
+                        }, 1000));
                 })
                 .catch(function(error) {
                     reject(new Error("步骤执行失败: " + (step.description || step.action) + " - " + error));
@@ -93,11 +96,14 @@ TaskEngine.prototype.executeSingleStep = function(step, task) {
                 case 'launch':
                     actionPromise = self.launchApp(task.packageName, step.params.timeout);
                     break;
-                case 'click':
+                case 'click_desc':
                     actionPromise = self.clickElement(step.params.selector, step.params.timeout);
                     break;
                 case 'click_img':
                     actionPromise = self.clickImage(step.params.selector, step.params.timeout);
+                    break;
+                case 'click_to_earn_3points_loop':
+                    actionPromise = self.executeLoop(step);
                     break;
                 default:
                     reject(new Error("未知的操作类型: " + step.action));
@@ -210,7 +216,7 @@ TaskEngine.prototype.clickElement = function(selector) {
                     var clickSuccess = false;
                     try {
                         if (element.clickable()) {
-                            // 如果元素可点击，使用正常的cLick方法
+                            // 如果元素可点击，使用正常的click方法
                             element.click();
                             clickSuccess = true;
                             resolve();
@@ -241,6 +247,47 @@ TaskEngine.prototype.clickElement = function(selector) {
                 logger.error("查找元素时发生错误: " + (error ? error.message : "未知错误"));
                 reject(error);
             });
+    });
+};
+
+/**
+ * 执行循环操作
+ */
+TaskEngine.prototype.executeLoop = function(step) {
+    var self = this;
+    return new Promise(function(resolve) {
+        function checkCondition() {
+            self.findElementUtils.findElement(step.params.selector)
+                .then(function(element) {
+                    if (element) {
+                        // 执行点击操作
+                        self.clickElement(step.params.selector)
+                            .then(function() {
+                                logger.info("点击成功，等待6秒...");
+                                // 等待5秒
+                                setTimeout(function() {
+                                    logger.info("返回上一页...");
+                                    // 返回上一页
+                                    back();
+                                    // 继续循环检查
+                                    setTimeout(checkCondition, 500); // 稍等再检查，确保页面已返回
+                                }, 6000);
+                            })
+                            .catch(function(error) {
+                                logger.error("循环内点击失败: " + error.message);
+                                // 点击失败时继续循环检查
+                                setTimeout(checkCondition, 1000);
+                            });
+                    } else {
+                        // 元素不存在，循环结束
+                        logger.info("循环条件不满足，结束循环");
+                        resolve();
+                    }
+                });
+        }
+        
+        // 开始检查条件
+        checkCondition();
     });
 };
 
