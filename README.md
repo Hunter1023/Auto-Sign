@@ -1,6 +1,22 @@
 # 简介
 使用[AutoJs6](https://github.com/SuperMonster003/AutoJs6)编写的自动签到脚本。
 
+---
+## 当前功能
+
+| 应用名称 | 功能 |
+| --- | --- |
+| 龙湖 | 自动签到 |
+| 微软必应 | 自动搜索，赚取积分；自动阅读，赚取积分 |
+
+---
+## 待开发功能
+
+| 应用名称 | 功能 |
+| --- | --- |
+| 微软必应 | 通过更多活动获取积分；签入获取积分 |
+
+---
 
 ## <a id="script-development-assistance"></a>脚本开发辅助
 
@@ -37,13 +53,3 @@ Ctrl + Shift + P 打开命令面板，输入 `AutoJs: Create New Project` 并回
 │  project.json        # 项目配置
 │  tsconfig.json       # 定义TypeScript编译规则
 ```
-
----
-## 当前功能
-
-- 龙湖App签到
-
----
-## 开发中功能
-
-- 微软必应App积分获取
