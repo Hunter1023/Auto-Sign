@@ -109,6 +109,9 @@ TaskEngine.prototype.executeSingleStep = function(step, task) {
                 case 'click_to_earn_3points_loop':
                     actionPromise = self.executeLoop(step.regExp);
                     break;
+                case 'read_to_earn_30points':
+                    actionPromise = self.read(step);
+                    break;
                 default:
                     reject(new Error("未知的操作类型: " + step.action));
                     return;
@@ -121,6 +124,75 @@ TaskEngine.prototype.executeSingleStep = function(step, task) {
         }
     });
 };
+
+TaskEngine.prototype.read = function(step) {
+    var self = this;
+
+    return new Promise(function(resolve, reject) {
+        let width = device.width;
+        let height = device.height;
+        // 从屏幕垂直方向2/3处向上滑动1/3屏幕的高度，滑动持续时间500ms
+        swipe(width / 2, height * 2 / 3, width / 2, height * 1 / 3, 500);
+        sleep(1000);
+        // 存在id的控件
+        if (id(step.id).exists()) {
+            // 点击主页
+            self.clickByDesc(step.desc);
+            // 以屏幕高度的2/3为距离，向上滑动屏幕，滑动持续时间500ms
+            sleep(2000);
+            swipe(width / 2, height * 4 / 5, width / 2, 0, 500);
+            sleep(2000);
+
+            var clickCount = 0;
+            // 存储已点击控件的集合
+            var clickedContorls = new Set();
+            while (clickCount < 10) {
+                // 获取 深度20 && className为'android.view.View' && clickable为true的所有控件
+                var controls = depth(20).className('android.view.View').clickable(true).find();
+                // 遍历当前所有符合要求的控件
+                for (var i = 0; i < controls.length; i++) {
+                    var control = controls[i];
+                    // 当前控件已处理过
+                    if (clickedContorls.has(control)) {
+                        continue;
+                    }
+                    var parent = control.parent();
+                    var isValid = true;
+                    if (parent) {
+                        var children = parent.children();
+                        // 检查父控件的子控件中是否包含android.widget.Image
+                        for (var j = 0; j < children.length; j++) {
+                            if (children[j].className() === 'android.widget.Image') {
+                                isValid = false;
+                                clickedContorls.add(control);
+                                break;
+                            }
+                        }
+                    } else {
+                        isValid = false;
+                        clickedContorls.add(control);
+                    }
+
+                    if (isValid) {
+                        // 点击符合条件的控件
+                        clickElement(validControl);
+                        clickedContorls.add(validControl);
+                        sleep(6000); // 等待6秒
+                        back(); // 返回上一页
+                        clickCount++;
+                        logger.info("已点击 " + clickCount + " 个符合条件的控件");
+                    } else {
+                        logger.info("当前控件不符合要求");
+                    }
+                }
+                swipe(width / 2, height * 2 / 3, width / 2, height * 1 / 3, 500);
+                sleep(1000);
+            }
+        }
+        resolve();
+        return;
+    });
+}
 
 // 具体的操作实现方法
 TaskEngine.prototype.launchApp = function(packageName, timeout) {
@@ -142,6 +214,8 @@ TaskEngine.prototype.launchApp = function(packageName, timeout) {
         }, 1000);
     });
 };
+
+
 
 TaskEngine.prototype.clickImage = function(text, retryCount, retryInterval) {
     var self = this;
@@ -216,14 +290,12 @@ TaskEngine.prototype.clickImage = function(text, retryCount, retryInterval) {
  */
 TaskEngine.prototype.clickByDesc = function(desc) {
     var self = this;
-    return new Promise(function(resolve,reject) {
-        self.findElementUtils.findElementByDesc(desc)
-            .then(clickElement(resolve, reject, desc))
+    return self.findElementUtils.findElementByDesc(desc)
+            .then(clickElement)
             .catch(function(error) {
                 logger.error("查找元素时发生错误: " + (error ? error.message : "未知错误"));
                 reject(error);
             });
-    });
 };
 
 /**
@@ -233,14 +305,12 @@ TaskEngine.prototype.clickByDesc = function(desc) {
  */
 TaskEngine.prototype.clickByText = function(text) {
     var self = this;
-    return new Promise(function(resolve,reject) {
-        self.findElementUtils.findElementByText(text)
-            .then(clickElement(resolve, reject, text))
+    return self.findElementUtils.findElementByText(text)
+            .then(clickElement)
             .catch(function(error) {
                 logger.error("查找元素时发生错误: " + (error ? error.message : "未知错误"));
                 reject(error);
             });
-    });
 };
 
 
@@ -249,27 +319,25 @@ TaskEngine.prototype.clickByText = function(text) {
  * 
  * @param {*} resolve 
  * @param {*} reject 
- * @param {*} target 用于查找元素的信息
+ * @param {*} element
  * @returns 
  */
-function clickElement(resolve, reject, target) {
-    return function (element) {
+function clickElement(element) {
+    return new Promise(function (resolve, reject) {
         if (element) {
             var clickSuccess = false;
             try {
                 if (element.clickable()) {
                     element.click();
                     clickSuccess = true;
-                    resolve();
                 } else {
                     logger.info("元素不可点击，使用坐标点击方式");
                     clickSuccess = click(element.center().x, element.center().y);
-                    resolve();
                 }
 
                 if (clickSuccess) {
                     logger.info("点击操作执行完成");
-                    resolve();
+                    resolve(); // 点击成功时调用
                 } else {
                     logger.error("点击操作失败");
                     reject(new Error("点击操作执行失败"));
@@ -279,11 +347,11 @@ function clickElement(resolve, reject, target) {
                 reject(new Error("点击元素失败: " + error.message));
             }
         } else {
-            var errorMsg = "未找到元素: " + target;
+            var errorMsg = "未找到元素: " + element;
             logger.error(errorMsg);
             reject(new Error(errorMsg));
         }
-    };
+    });
 }
 
 /**
@@ -297,7 +365,7 @@ TaskEngine.prototype.executeLoop = function(regExp) {
                 .then(function(element) {
                     if (element) {
                         // 执行点击操作
-                        element.click()
+                        clickElement(element)
                             .then(function() {
                                 logger.info("点击成功，等待6秒...");
                                 // 等待5秒

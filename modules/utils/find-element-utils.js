@@ -30,7 +30,7 @@ FindElementUtils.prototype.findElementByText = function(targetText) {
  * 根据desc查找元素
  */
 FindElementUtils.prototype.findElementByDesc = function(targetDesc) {
-    return new Promise(function(resolve) {
+    return new Promise(function(resolve, reject) {
         threads.start(function() {
             try {
                 var element = desc(targetDesc).findOne(1000);
@@ -38,6 +38,7 @@ FindElementUtils.prototype.findElementByDesc = function(targetDesc) {
                 return;
             } catch (e) {
                 logger.error("查找元素异常: " + e);
+                reject(e);
             }
         });
     });
