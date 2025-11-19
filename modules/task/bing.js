@@ -23,15 +23,11 @@ function BingTask() {
                     description: '点击"Rewards"',
                     desc: "Rewards item 1 of 6"
                 },
-                /**
-                 * id('sa_native_feed_list')
-                 * 
-                 * id: sa_native_feed_carousel_view
-                 *     sa_hp_native_list_item_image_container
-                 *     sa_hp_native_list_item_title
-                 *     sa_hp_native_list_item_container
-                 * 
-                 */
+                {
+                    action: "click_text",
+                    description: '签入',
+                    text: "Day 1" // 如果当日未签入，text("Day 1")控件存在，否则会折叠无法找到
+                },
                 {               
                     action: "click_to_earn_3points_loop",
                     description: '点击可以赚取3积分的控件，直到没有可以点击的desc以" 3"收尾的控件',
