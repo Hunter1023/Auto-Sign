@@ -34,6 +34,11 @@ function BingTask() {
                     regExp: "(.+ 3)"       
                 },
                 {
+                    action: "click_more_activities",
+                    description: '获取"更多活动"的额外积分',
+                    id: "moreActivities"
+                },
+                {
                     action: "read_to_earn_30points",
                     description: '屏幕下滑，如果存在id("read")的控件，点击 desc("主页")控件，' + 
                                  '下滑寻找text("新闻流")控件，查看siblingCount()，如果数量 < 11，下滑一整个屏幕的距离，' +
@@ -43,12 +48,6 @@ function BingTask() {
                     text: "新闻流",
                     targetSiblingCount: 11 
                 }
-
-                /**
-                 * 定位额外任务：id("moreActivities")控件如果存在View子控件，说明是未做的任务，
-                 * 找到 text("Complete activities to earn xx points"), clickable: true 的控件
-                 * 点击，等待2s后返回，重复至无View子控件
-                 */
             ]
         }
     };
