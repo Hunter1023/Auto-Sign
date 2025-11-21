@@ -109,6 +109,9 @@ TaskEngine.prototype.executeSingleStep = function(step, task) {
                 case 'click_to_earn_3points_loop':
                     actionPromise = self.executeLoop(step.regExp);
                     break;
+                case 'click_more_activities':
+                    actionPromise = self.clickMoreActivities(step.id);
+                    break;
                 case 'read_to_earn_30points':
                     actionPromise = self.read(step);
                     break;
@@ -175,8 +178,8 @@ TaskEngine.prototype.read = function(step) {
 
                     if (isValid) {
                         // 点击符合条件的控件
-                        clickElement(validControl);
-                        clickedContorls.add(validControl);
+                        clickElement(control);
+                        clickedContorls.add(control);
                         sleep(6000); // 等待6秒
                         back(); // 返回上一页
                         clickCount++;
@@ -347,12 +350,44 @@ function clickElement(element) {
                 reject(new Error("点击元素失败: " + error.message));
             }
         } else {
-            var errorMsg = "未找到元素: " + element;
-            logger.error(errorMsg);
-            reject(new Error(errorMsg));
+            logger.info("未找到指定元素");
+            resolve();
         }
     });
 }
+
+TaskEngine.prototype.clickMoreActivities = function(targetId) {
+    var self = this;
+    return new Promise(function(resolve, reject) {
+        function clickAndCheck() {
+            var moreActivities = id(targetId).findOne(1000);
+            if (moreActivities) {
+                logger.debug("找到更多活动按钮: " + moreActivities);
+                var children = moreActivities.children();
+                var clickableFound = false;
+                for (var i = 0; i < children.length; i++) {
+                    if (children[i].clickable()) {
+                        children[i].click();
+                        clickableFound = true;
+                        break; // 找到一个可点击的子控件并点击后，跳出循环
+                    }
+                }
+                if (clickableFound) {
+                    // 如果有可点击的子控件，等待2秒后再次检查
+                    setTimeout(clickAndCheck, 2000);
+                } else {
+                    // 如果没有可点击的子控件，结束Promise
+                    resolve();
+                }
+            } else {
+                resolve();
+            }
+        }
+        // 开始点击和检查的逻辑
+        clickAndCheck();
+    });
+}
+
 
 /**
  * 执行循环操作
